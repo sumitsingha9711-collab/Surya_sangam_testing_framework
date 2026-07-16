@@ -1,87 +1,50 @@
 # Surya Sangam Selenium Automation
 
-This project is a Python Selenium + Pytest automation framework for testing the Surya Sangam homepage, About page, header navigation, CTA buttons, and Solar Calculator section.
+Python, Selenium, and Pytest automation for the Surya Sangam website using Page Object Model (POM).
 
-## Tech Stack
+## Coverage
 
-- Python 3.x
-- Selenium
-- Pytest
-- webdriver-manager
+- Homepage, hero content, images, footer, and CTAs
+- About page content, images, navigation, and CTAs
+- Header navigation
+- Responsive layout checks
+- Footer and social links
+- Rooftop Solar Estimator validation and calculations
 
-## Project Structure
+## Structure
 
 ```text
-surya_sangam_testing/
-├── pages/
-├── locators/
-├── tests/
-├── utils/
-├── reports/
-├── screenshots/
-├── conftest.py
-├── pytest.ini
-├── requirements.txt
-└── README.md
+pages/       Page objects and reusable components
+locators/    Centralized Selenium locators
+tests/       Independent Pytest scenarios
+utils/       Driver, waits, screenshots, reports, and email support
+docs/        Framework and learning documentation
+conftest.py  Shared browser fixture and reporting hooks
+pytest.ini   Test discovery and markers
 ```
+
+The calculator uses the homepage anchor `#surya-calculator`. Valid address submissions select an autocomplete suggestion before calculation. The current page has address, average units, and average bill fields; optional dropdown, radio, checkbox, reset, validation, and result support remains in the page object for future UI changes.
 
 ## Setup
 
-Install dependencies:
-
-```bash
+```powershell
 pip install -r requirements.txt
 ```
 
-Run all tests:
+## Run
 
-```bash
+```powershell
 pytest
-```
-
-Run a specific marker:
-
-```bash
+pytest -m calculator
 pytest -m homepage
 pytest -m about
-pytest -m calculator
-pytest -m navigation
-pytest -m buttons
 ```
 
-## Features
+The existing Pytest hook captures failure screenshots under `screenshots/` and generates `reports/execution_report.txt`. No test creates a separate reporting system.
 
-- Page Object Model design
-- Locators stored outside test files
-- Explicit waits only
-- Chrome driver management through webdriver-manager
-- Screenshots captured automatically on test failure
-- Plain text report generated at `reports/execution_report.txt`
-- Report includes an area-wise summary and screenshot evidence under failed tests
-- Tests focused on homepage, About page, navigation, CTA buttons, and Solar Calculator validation
+## Email Reports
 
-## Reports and Screenshots
-
-After each run, the framework writes a text report to:
-
-```text
-reports/execution_report.txt
-```
-
-Failure screenshots are saved in:
-
-```text
-screenshots/
-```
-
-Screenshot filenames include the failed test name and timestamp.
-
-The report also prints the screenshot path directly below each failed test so the problem can be inspected quickly.
-
-## Email Report
-
-The report can be emailed automatically after a pytest run. Set these environment
-variables before running `pytest`:
+Set these variables only when email delivery is required:
 
 ```powershell
 $env:SMTP_HOST = "smtp.gmail.com"
@@ -91,15 +54,4 @@ $env:SMTP_PASSWORD = "your_app_password"
 $env:SURYA_REPORT_EMAIL_TO = "first@example.com,second@example.com"
 ```
 
-Optional variables:
-
-```powershell
-$env:SMTP_FROM = "your_email@gmail.com"
-$env:SURYA_REPORT_EMAIL_CC = "manager@example.com"
-$env:SURYA_REPORT_EMAIL_BCC = "audit@example.com"
-$env:SURYA_REPORT_EMAIL_SUBJECT = "Automation Report"
-$env:SMTP_USE_TLS = "true"
-```
-
-If the email variables are not set, tests still run normally and only generate
-`reports/execution_report.txt`.
+See `docs/FRAMEWORK_SUMMARY.md` and `docs/TECHNOLOGY_AND_LEARNING_GUIDE.md` for architecture and maintenance guidance.

@@ -75,8 +75,16 @@ class CalculatorPage(BasePage):
                 suggestion.click()
                 return True
         except (TimeoutException, WebDriverException):
+            pass
+
+        # Autocomplete can render outside the calculator section or miss the
+        # visibility wait. Keyboard selection commits the first suggestion.
+        try:
+            field = self.wait_for_visibility(CalculatorLocators.LOCATION_INPUT, timeout=3)
+            field.send_keys(Keys.ARROW_DOWN, Keys.ENTER)
+            return True
+        except WebDriverException:
             return False
-        return False
 
     def enter_monthly_bill(self, amount):
         """Enter the average monthly bill value."""
@@ -107,9 +115,14 @@ class CalculatorPage(BasePage):
         return False
 
     def click_calculate(self):
-        """Click the calculator action and return any alert validation text."""
+        """Click calculate and retry once when address autocomplete is late."""
         self.click(CalculatorLocators.CALCULATE_BUTTON)
-        return self._consume_alert_text()
+        validation = self._consume_alert_text()
+        if validation and "enter an address" in validation.lower():
+            if self.select_location_suggestion():
+                self.click(CalculatorLocators.CALCULATE_BUTTON)
+                return self._consume_alert_text()
+        return validation
 
     def click_reset(self):
         """Click reset when available, otherwise clear all fields."""
