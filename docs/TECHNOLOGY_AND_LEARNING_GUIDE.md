@@ -1,0 +1,373 @@
+# Technology and Learning Guide
+
+## Technologies Used
+
+### Python 3.x
+
+Python is the main programming language used to write the framework.
+
+In this project, Python is used for:
+
+- writing test cases
+- creating page object classes
+- managing reusable utility functions
+- generating the text report
+- handling dates and timestamps for screenshots
+
+Example files:
+
+- `tests/test_homepage.py`
+- `tests/test_about.py`
+- `tests/test_calculator.py`
+- `pages/home_page.py`
+- `pages/about_page.py`
+- `pages/calculator_page.py`
+- `utils/report_generator.py`
+
+## Libraries Used
+
+### Selenium
+
+Selenium is used for browser automation.
+
+In this project, Selenium is used to:
+
+- launch Chrome
+- open `https://www.suryasangam.com/`
+- find elements on the page
+- click buttons and links
+- verify elements are visible
+- check page title and current URL
+- scroll to elements
+- verify images are loaded
+- capture screenshots on failures
+
+Important Selenium features used:
+
+- `webdriver.Chrome`
+- `By`
+- `WebDriverWait`
+- `expected_conditions`
+- `ActionChains`
+- browser JavaScript execution using `execute_script`
+
+Example files:
+
+- `utils/driver_factory.py`
+- `pages/base_page.py`
+- `pages/home_page.py`
+- `pages/about_page.py`
+- `pages/calculator_page.py`
+- `pages/header.py`
+
+### Pytest
+
+Pytest is used as the test runner.
+
+Even if you already know unit testing, Pytest makes automation testing cleaner because it gives better fixtures, hooks, markers, and readable assertions.
+
+In this project, Pytest is used to:
+
+- discover and run test files
+- manage browser setup and teardown
+- create reusable fixtures
+- group tests using markers
+- capture test result status
+- trigger screenshot capture when a test fails
+- generate the final text report after test execution
+
+Example files:
+
+- `conftest.py`
+- `pytest.ini`
+- `tests/test_homepage.py`
+- `tests/test_navigation.py`
+- `tests/test_buttons.py`
+
+### webdriver-manager
+
+webdriver-manager is used to automatically manage ChromeDriver.
+
+Without webdriver-manager, you usually need to manually download ChromeDriver, match it with your Chrome browser version, and set the driver path.
+
+In this project, webdriver-manager is used to:
+
+- download the correct ChromeDriver
+- avoid manual driver setup
+- make the project easier to run on another machine
+
+Example file:
+
+- `utils/driver_factory.py`
+
+Code usage:
+
+```python
+service = Service(ChromeDriverManager().install())
+driver = webdriver.Chrome(service=service, options=chrome_options)
+```
+
+### Python Standard Library
+
+Some built-in Python modules are also used.
+
+Used modules:
+
+- `datetime` for timestamps and report dates
+- `pathlib` for file and folder paths
+- `platform` for Python version information
+- `urllib.parse` for checking URLs cleanly
+
+Example files:
+
+- `utils/screenshot.py`
+- `utils/report_generator.py`
+- `pages/home_page.py`
+
+## Framework Design Used
+
+### Page Object Model
+
+The framework uses the Page Object Model design pattern.
+
+This means each web page or page section has its own class.
+
+In this project:
+
+- `BasePage` contains common Selenium actions.
+- `HomePage` contains homepage-specific actions and validations.
+- `AboutPage` contains About page-specific actions and validations.
+- `CalculatorPage` contains Solar Calculator-specific actions and validations.
+- `Header` contains header-specific actions and validations.
+
+This keeps test cases short and easy to read.
+
+Instead of writing Selenium code directly in tests, the tests call page methods like:
+
+```python
+home_page.verify_hero_section()
+about_page.verify_company_description()
+calculator_page.enter_monthly_bill("2500")
+header.click_navigation_item("Contact Us")
+```
+
+## How Each Technology Was Used in This Project
+
+### Browser Setup
+
+Chrome browser setup is handled in:
+
+```text
+utils/driver_factory.py
+```
+
+Selenium creates the browser and webdriver-manager provides the correct ChromeDriver.
+
+### Test Setup and Teardown
+
+Pytest fixtures are used in:
+
+```text
+conftest.py
+```
+
+The `driver()` fixture creates a browser before each test and closes it after the test.
+
+### Locators
+
+All XPath and CSS selectors are stored in:
+
+```text
+locators/
+```
+
+This keeps test files clean and avoids duplicate locator code.
+
+### Page Actions
+
+Reusable Selenium actions are stored in:
+
+```text
+pages/base_page.py
+```
+
+For example:
+
+- click
+- type
+- clear
+- get text
+- scroll
+- wait for visible
+- wait for clickable
+
+### Homepage Tests
+
+Actual test cases are stored in:
+
+```text
+tests/
+```
+
+The tests validate:
+
+- homepage load
+- About page load
+- Solar Calculator load
+- correct URL
+- page title
+- logo
+- hero section
+- About page heading and company description
+- calculator inputs, validation, result cards, reset behavior, and buttons
+- CTA buttons
+- navigation links
+- images
+- footer
+
+### Screenshot Capture
+
+Failure screenshots are handled by:
+
+```text
+utils/screenshot.py
+```
+
+Pytest calls this automatically from `conftest.py` when a test fails.
+
+### Text Report
+
+The text report is generated by:
+
+```text
+utils/report_generator.py
+```
+
+The final report is saved at:
+
+```text
+reports/execution_report.txt
+```
+
+The report includes an area-wise summary and places screenshot evidence directly under any failed test. This makes it easier to identify which page failed and which screenshot should be opened first.
+
+## How Long It Takes to Learn This
+
+Since you already know Selenium and unit testing, the learning time is much shorter.
+
+### If You Study 1 to 2 Hours Per Day
+
+Estimated time:
+
+```text
+7 to 12 days
+```
+
+### Suggested Learning Plan
+
+Day 1:
+
+Learn the project folder structure and how Pytest discovers tests.
+
+Day 2:
+
+Learn Pytest fixtures, especially setup and teardown using `conftest.py`.
+
+Day 3:
+
+Learn Page Object Model and why locators should not be placed inside test files.
+
+Day 4:
+
+Learn explicit waits using `WebDriverWait` and `expected_conditions`.
+
+Day 5:
+
+Learn screenshot capture on failure using Pytest hooks.
+
+Day 6:
+
+Learn custom text report generation using Pytest result data.
+
+Day 7:
+
+Practice adding one new page object and one new test file.
+
+Phase 3 example:
+
+- add `locators/about_locators.py`
+- add `pages/about_page.py`
+- add `tests/test_about.py`
+- register the `about` marker in `pytest.ini`
+- update framework documentation
+
+Phase 4 example:
+
+- add `locators/calculator_locators.py`
+- add `pages/calculator_page.py`
+- add `tests/test_calculator.py`
+- register the `calculator` marker in `pytest.ini`
+- improve the report so failures show problem details and screenshot evidence under the failed test
+
+Days 8 to 12:
+
+Practice real website automation with navigation, buttons, forms, image validation, and reports.
+
+## What You Already Know vs What You Need to Learn
+
+If you already know Selenium:
+
+- finding elements will be familiar
+- clicking buttons will be familiar
+- checking text and title will be familiar
+- browser automation will be familiar
+
+If you already know unit testing:
+
+- assertions will be familiar
+- test methods will be familiar
+- pass and fail logic will be familiar
+
+New things to focus on:
+
+- Pytest fixtures
+- Pytest hooks
+- Page Object Model structure
+- explicit waits
+- reusable utility classes
+- screenshot handling
+- text report generation
+- separating locators from tests
+- keeping page tests independent while returning to the source page after navigation checks
+- testing form validation through alerts and visible result sections
+
+## Why Pytest Instead of unittest
+
+`unittest` is built into Python and is good for basic test cases.
+
+Pytest is commonly preferred in automation frameworks because:
+
+- tests are shorter
+- fixtures are more powerful
+- assertions are cleaner
+- hooks make reporting easier
+- markers help group tests
+- test output is easier to read
+
+For internship and professional automation projects, Pytest with Selenium is a strong and common choice.
+
+## Simple Explanation for Interview
+
+You can explain the framework like this:
+
+```text
+I used Python, Selenium, Pytest, and webdriver-manager.
+
+Selenium handles browser automation.
+Pytest handles test execution, fixtures, setup, teardown, and result collection.
+webdriver-manager handles ChromeDriver automatically.
+
+I followed the Page Object Model. Locators are stored separately, reusable browser actions are kept in BasePage, page-specific methods are in HomePage, AboutPage, CalculatorPage, and Header, and test files only contain readable assertions.
+
+Screenshots are captured automatically on failure, and a custom plain text report is generated after every test run with area-wise summary and screenshot evidence under failed tests.
+```
