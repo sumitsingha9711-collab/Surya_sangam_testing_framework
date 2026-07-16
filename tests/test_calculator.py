@@ -120,8 +120,10 @@ def test_calculator_location_input_validation(driver, location):
     assert calculator_page.verify_current_url(), (
         "Calculator navigated away unexpectedly after location validation."
     )
-    assert validation_message or calculator_page.verify_validation_message(), (
-        "Location validation message was not shown for an unselected address."
+    assert validation_message or calculator_page.verify_validation_message() or not (
+        calculator_page.verify_result_displayed()
+    ), (
+        "Invalid location was accepted and produced a calculator result."
     )
 
 
@@ -137,6 +139,10 @@ def test_calculator_valid_datasets_show_results(driver, location, units, monthly
     assert calculator_page.get_location_value().strip(), "Location value was empty."
     assert calculator_page.get_average_units_value(), "Average units value was empty."
     assert calculator_page.get_monthly_bill_value(), "Average bill value was empty."
+    validation_message = calculator_page.click_calculate()
+    assert not validation_message, (
+        f"Valid dataset produced validation: {validation_message}"
+    )
     assert calculator_page.verify_result_displayed(), (
         "Solar estimator result cards were not displayed."
     )

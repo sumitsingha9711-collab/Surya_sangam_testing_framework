@@ -2,7 +2,11 @@
 
 from urllib.parse import urlparse
 
-from selenium.common.exceptions import NoAlertPresentException, TimeoutException
+from selenium.common.exceptions import (
+    NoAlertPresentException,
+    TimeoutException,
+    WebDriverException,
+)
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select, WebDriverWait
@@ -48,8 +52,31 @@ class CalculatorPage(BasePage):
         return self.is_visible(CalculatorLocators.CALCULATOR_HEADING)
 
     def enter_location(self, location):
-        """Enter a location or address value."""
+        """Enter an address and select an autocomplete suggestion when present."""
         self._set_input_value(CalculatorLocators.LOCATION_INPUT, location)
+        self.select_location_suggestion()
+
+    def select_location_suggestion(self):
+        """Select the first visible address suggestion, if the site provides one."""
+        try:
+            suggestion = WebDriverWait(self.driver, 4).until(
+                lambda active_driver: next(
+                    (
+                        item
+                        for item in active_driver.find_elements(
+                            *CalculatorLocators.LOCATION_SUGGESTIONS
+                        )
+                        if item.is_displayed() and item.is_enabled()
+                    ),
+                    False,
+                )
+            )
+            if suggestion:
+                suggestion.click()
+                return True
+        except (TimeoutException, WebDriverException):
+            return False
+        return False
 
     def enter_monthly_bill(self, amount):
         """Enter the average monthly bill value."""
@@ -61,11 +88,11 @@ class CalculatorPage(BasePage):
 
     def select_property_type(self, option_text=None):
         """Select property type when the field is available."""
-        return self._select_first_dropdown_option(option_text)
+        return self._select_dropdown_option(0, option_text)
 
     def select_roof_type(self, option_text=None):
         """Select roof type when the field is available."""
-        return self._select_first_dropdown_option(option_text)
+        return self._select_dropdown_option(1, option_text)
 
     def select_any_other_required_inputs(self):
         """Select the first unchecked radio or checkbox when present."""
@@ -91,8 +118,7 @@ class CalculatorPage(BasePage):
             button for button in reset_buttons if button.is_displayed()
         ]
         if visible_reset_buttons:
-            visible_reset_buttons[0].click()
-            self.wait_for_page_load()
+            self.click(CalculatorLocators.RESET_BUTTON)
             return True
 
         self.clear_all_fields()
@@ -109,7 +135,7 @@ class CalculatorPage(BasePage):
         self.driver.execute_script(
             "window.scrollTo(0, Math.max(0, document.body.scrollHeight / 3));"
         )
-        if not self.is_visible(CalculatorLocators.RESULT_SECTION, timeout=8):
+        if not self.is_visible(CalculatorLocators.RESULT_SECTION, timeout=10):
             return False
         cards = [
             card
@@ -127,6 +153,13 @@ class CalculatorPage(BasePage):
         alert_text = self._consume_alert_text()
         if alert_text:
             return alert_text
+
+        # Browser-native validation covers required and number fields even
+        # when the application does not render an inline error element.
+        for field in self.get_input_fields():
+            message = field.get_attribute("validationMessage")
+            if message:
+                return message.strip()
 
         messages = [
             element.text.strip()
@@ -150,6 +183,17 @@ class CalculatorPage(BasePage):
                 "arguments[0].dispatchEvent(new Event('change', {bubbles: true}));",
                 field,
             )
+
+        # The current page has no reset control, but keep optional controls
+        # reusable if they are added to the calculator later.
+        for locator in (CalculatorLocators.RADIO_BUTTONS, CalculatorLocators.CHECKBOXES):
+            for option in self.driver.find_elements(*locator):
+                if option.is_selected():
+                    self.driver.execute_script(
+                        "arguments[0].checked = false;"
+                        "arguments[0].dispatchEvent(new Event('change', {bubbles: true}));",
+                        option,
+                    )
 
     def get_location_value(self):
         """Return the location field value."""
@@ -217,16 +261,16 @@ class CalculatorPage(BasePage):
             field,
         )
 
-    def _select_first_dropdown_option(self, option_text=None):
+    def _select_dropdown_option(self, index, option_text=None):
         dropdowns = [
             dropdown
             for dropdown in self.driver.find_elements(*CalculatorLocators.DROPDOWNS)
             if dropdown.is_displayed() and dropdown.is_enabled()
         ]
-        if not dropdowns:
+        if index >= len(dropdowns):
             return False
 
-        select = Select(dropdowns[0])
+        select = Select(dropdowns[index])
         if option_text:
             select.select_by_visible_text(option_text)
         elif len(select.options) > 1:

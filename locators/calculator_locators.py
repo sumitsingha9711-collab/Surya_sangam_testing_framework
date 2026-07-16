@@ -39,6 +39,12 @@ class CalculatorLocators:
         "//h1[normalize-space()='Rooftop Solar Estimator']/ancestor::section[1]"
         "//input[@type='checkbox']",
     )
+    LOCATION_SUGGESTIONS = (
+        By.XPATH,
+                "//*[@role=''option''] | "
+        "//div[contains(@class, ''pac-container'')]//div[contains(@class, ''pac-item'')] | "
+        "//li[contains(@class, 'suggestion')]",
+    )
     CURRENT_LOCATION_BUTTON = (
         By.XPATH,
         "//button[@aria-label='Get current location']",
