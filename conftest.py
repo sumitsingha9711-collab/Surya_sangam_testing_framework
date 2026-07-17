@@ -1,4 +1,4 @@
-﻿"""Pytest configuration, fixtures, screenshots, and text reporting."""
+﻿"""Pytest configuration, screenshots, and text reporting."""
 
 import smtplib
 
@@ -76,6 +76,7 @@ def _test_category(item):
     """Return the primary functional area marker for report grouping."""
     for marker in (
         "calculator",
+        "services",
         "about",
         "homepage",
         "navigation",

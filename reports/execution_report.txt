@@ -2,37 +2,176 @@
 Surya Sangam Automation Report
 =======================================
 Execution Date: 2026-07-17
-Execution Time: 12:27:41
+Execution Time: 12:41:50
 Browser: Chrome
 Python Version: 3.13.7
 Selenium Version: 4.27.1
 Website URL: https://www.suryasangam.com/
-Total Test Cases: 0
-Passed: 0
-Failed: 0
+Total Test Cases: 20
+Passed: 19
+Failed: 1
 Skipped: 0
-Pass Percentage: 0.00%
-Fail Percentage: 0.00%
-Execution Duration: 0.05 sec
+Pass Percentage: 95.00%
+Fail Percentage: 5.00%
+Execution Duration: 828.06 sec
 
 =======================================
 Result Summary By Area
 =======================================
-No tests were executed.
+Contact Validation: Total=20, Passed=19, Failed=1, Skipped=0
 
 =======================================
 Executed Test Cases
 =======================================
+TC001 - P2-CNT-VAL-001 | Invalid email is rejected without form submission. [P2-CNT-VAL-001-missing-at]
+Area: Contact Validation
+PASS
+Duration: 16.65 sec
+---
+
+TC002 - P2-CNT-VAL-001 | Invalid email is rejected without form submission. [P2-CNT-VAL-001-missing-domain]
+Area: Contact Validation
+PASS
+Duration: 17.88 sec
+---
+
+TC003 - P2-CNT-VAL-001 | Invalid email is rejected without form submission. [P2-CNT-VAL-001-missing-username]
+Area: Contact Validation
+PASS
+Duration: 16.85 sec
+---
+
+TC004 - P2-CNT-VAL-001 | Invalid email is rejected without form submission. [P2-CNT-VAL-001-multiple-at]
+Area: Contact Validation
+PASS
+Duration: 16.86 sec
+---
+
+TC005 - P2-CNT-VAL-001 | Invalid email is rejected without form submission. [P2-CNT-VAL-001-invalid-space]
+Area: Contact Validation
+PASS
+Duration: 16.80 sec
+---
+
+TC006 - P2-CNT-VAL-001 | Invalid email is rejected without form submission. [P2-CNT-VAL-001-incomplete-domain]
+Area: Contact Validation
+PASS
+Duration: 17.08 sec
+---
+
+TC007 - P2-CNT-VAL-002 | Invalid phone is rejected without form submission. [P2-CNT-VAL-002-too-few-digits]
+Area: Contact Validation
+PASS
+Duration: 17.27 sec
+---
+
+TC008 - P2-CNT-VAL-002 | Invalid phone is rejected without form submission. [P2-CNT-VAL-002-too-many-digits]
+Area: Contact Validation
+PASS
+Duration: 17.23 sec
+---
+
+TC009 - P2-CNT-VAL-002 | Invalid phone is rejected without form submission. [P2-CNT-VAL-002-alphabetic]
+Area: Contact Validation
+PASS
+Duration: 16.90 sec
+---
+
+TC010 - P2-CNT-VAL-002 | Invalid phone is rejected without form submission. [P2-CNT-VAL-002-special-character]
+Area: Contact Validation
+PASS
+Duration: 17.29 sec
+---
+
+TC011 - P2-CNT-VAL-002 | Invalid phone is rejected without form submission. [P2-CNT-VAL-002-mixed-alphanumeric]
+Area: Contact Validation
+PASS
+Duration: 17.06 sec
+---
+
+TC012 - P2-CNT-VAL-002 | Invalid phone is rejected without form submission. [P2-CNT-VAL-002-empty-phone]
+Area: Contact Validation
+PASS
+Duration: 17.08 sec
+---
+
+TC013 - P2-CNT-VAL-003 | Empty Contact form validates required fields.
+Area: Contact Validation
+PASS
+Duration: 15.44 sec
+---
+
+TC014 - P2-CNT-SEC-004 | SQL injection strings do not expose technical errors. [P2-CNT-SEC-004-boolean-condition]
+Area: Contact Validation
+PASS
+Duration: 1.44 sec
+---
+
+TC015 - P2-CNT-SEC-004 | SQL injection strings do not expose technical errors. [P2-CNT-SEC-004-comment-suffix]
+Area: Contact Validation
+PASS
+Duration: 1.49 sec
+---
+
+TC016 - P2-CNT-SEC-004 | SQL injection strings do not expose technical errors. [P2-CNT-SEC-004-numeric-condition]
+Area: Contact Validation
+PASS
+Duration: 1.42 sec
+---
+
+TC017 - P2-CNT-SEC-005 | XSS payload is handled without script execution. [P2-CNT-SEC-005-script-tag]
+Area: Contact Validation
+PASS
+Duration: 1.50 sec
+---
+
+TC018 - P2-CNT-SEC-005 | XSS payload is handled without script execution. [P2-CNT-SEC-005-image-handler]
+Area: Contact Validation
+PASS
+Duration: 1.46 sec
+---
+
+TC019 - P2-CNT-SEC-005 | XSS payload is handled without script execution. [P2-CNT-SEC-005-svg-handler]
+Area: Contact Validation
+PASS
+Duration: 1.53 sec
+---
+
+TC020 - P2-CNT-VAL-006 | Valid unique data shows a meaningful success message.
+Area: Contact Validation
+FAIL
+Duration: 16.81 sec
+Problem Details:
+contact_form = <pages.contact_form_component.ContactFormComponent object at 0x0000025F1ADDFCF0>
+
+    @pytest.mark.contact_validation
+    def test_p2_cnt_val_006_valid_unique_submission_shows_success(contact_form):
+        """P2-CNT-VAL-006 | Valid unique data shows a meaningful success message."""
+        _fill_available_fields(contact_form)
+        contact_form.submit()
+    
+        success_message = contact_form.success_message()
+>       assert success_message, "Valid Contact form submission showed no success message."
+E       AssertionError: Valid Contact form submission showed no success message.
+E       assert ''
+
+tests\test_contact_validation_person2.py:190: AssertionError
+Screenshot Evidence:
+D:\selenium testing\surya_sangam_test\surya_sangam_testing\screenshots\test_p2_cnt_val_006_valid_unique_submission_shows_success_20260717_125535.png
+Open this image to see the exact browser state at failure.
+---
+
 =======================================
 Summary
 =======================================
-Total: 0
-Passed: 0
-Failed: 0
-Pass Percentage: 0.00%
-Fail Percentage: 0.00%
+Total: 20
+Passed: 19
+Failed: 1
+Pass Percentage: 95.00%
+Fail Percentage: 5.00%
 
 =======================================
 Recommendations
 =======================================
-All site checks passed. Continue adding tests for deeper flows.
+- Review 'P2-CNT-VAL-006 | Valid unique data shows a meaningful success message.' and validate the related page element, link, or application behavior.
+  Screenshot evidence is listed directly under the failed test: D:\selenium testing\surya_sangam_test\surya_sangam_testing\screenshots\test_p2_cnt_val_006_valid_unique_submission_shows_success_20260717_125535.png.
