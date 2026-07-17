@@ -77,6 +77,7 @@ def _test_category(item):
     for marker in (
         "calculator",
         "services",
+        "blog",
         "about",
         "homepage",
         "navigation",
