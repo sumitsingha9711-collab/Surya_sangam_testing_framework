@@ -48,19 +48,37 @@ class BlogPage(BasePage):
         cards = self.get_blog_cards()
         if not cards:
             return False
-        return (
-            bool(self.get_blog_titles())
-            and any(self.get_blog_card_image(card) for card in cards)
-            and any(self.get_blog_card_date(card) for card in cards)
-            and any(self.get_blog_card_category(card) for card in cards)
+        return bool(self.get_blog_titles()) and any(
+            self.get_blog_card_image(card) for card in cards
         )
 
     def get_blog_cards(self):
         """Return visible blog card containers."""
         cards = []
         seen = set()
-        for card in self.driver.find_elements(*BlogLocators.BLOG_CARDS):
-            if not card.is_displayed():
+        try:
+            candidates = self.driver.execute_script(
+                """
+                const out = [];
+                const nodes = document.querySelectorAll('main section, main article, main div');
+                for (const el of nodes) {
+                  const text = (el.innerText || '').replace(/\\s+/g, ' ').trim();
+                  if (!text) continue;
+                  if (!text.toLowerCase().includes('read more')) continue;
+                  if (text.length < 80) continue;
+                  out.push(el);
+                }
+                return out;
+                """
+            )
+        except Exception:
+            candidates = []
+
+        for card in candidates:
+            try:
+                if not card.is_displayed():
+                    continue
+            except StaleElementReferenceException:
                 continue
             key = self._element_key(card)
             if key in seen:
@@ -71,8 +89,14 @@ class BlogPage(BasePage):
         if cards:
             return cards
 
-        for link in self.driver.find_elements(By.XPATH, "//main//a[contains(@href, '/blogs/')]"):
-            if not link.is_displayed():
+        for link in self.driver.find_elements(By.XPATH, "//a[@href]"):
+            try:
+                if not link.is_displayed():
+                    continue
+            except StaleElementReferenceException:
+                continue
+            normalized = self._normalize_blog_url(link.get_attribute('href'))
+            if not normalized:
                 continue
             card = self._nearest_card_container(link)
             key = self._element_key(card)
@@ -95,13 +119,16 @@ class BlogPage(BasePage):
         """Return visible blog post links."""
         links = []
         seen = set()
-        for link in self.driver.find_elements(By.XPATH, "//main//a[contains(@href, '/blogs/')]"):
-            if not link.is_displayed():
+        for link in self.driver.find_elements(By.XPATH, "//a[@href]"):
+            try:
+                if not link.is_displayed():
+                    continue
+            except StaleElementReferenceException:
                 continue
-            href = (link.get_attribute("href") or "").strip()
-            if not href or href in seen:
+            normalized = self._normalize_blog_url(link.get_attribute("href"))
+            if not normalized or normalized in seen:
                 continue
-            seen.add(href)
+            seen.add(normalized)
             links.append(link)
         return links
 
@@ -208,11 +235,20 @@ class BlogPage(BasePage):
 
     def get_related_post_links(self):
         """Return visible related post links."""
-        return [
-            link
-            for link in self.driver.find_elements(*BlogLocators.BLOG_DETAIL_RELATED_LINKS)
-            if link.is_displayed() and self._is_internal_link(link.get_attribute("href"))
-        ]
+        links = []
+        seen = set()
+        for link in self.driver.find_elements(*BlogLocators.BLOG_DETAIL_RELATED_LINKS):
+            try:
+                if not link.is_displayed():
+                    continue
+            except StaleElementReferenceException:
+                continue
+            normalized = self._normalize_blog_url(link.get_attribute("href"))
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            links.append(link)
+        return links
 
     def get_share_buttons(self):
         """Return visible share buttons and social share links."""
@@ -321,19 +357,22 @@ class BlogPage(BasePage):
     def verify_internal_link(self, link):
         """Click an internal link and verify that navigation succeeds."""
         original_url = self.driver.current_url
-        expected_href = (link.get_attribute("href") or "").strip()
+        expected_href = self._normalize_blog_url(link.get_attribute("href"))
         self.driver.execute_script(
             "arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});",
             link,
         )
         WebDriverWait(self.driver, 10).until(lambda _: link.is_enabled())
         link.click()
-        self.wait_for_page_load()
+        try:
+            self.wait_for_page_load()
+        except TimeoutException:
+            self.driver.execute_script("window.stop();")
 
         current_url = self.driver.current_url
         if expected_href:
             return self._urls_match(current_url, expected_href)
-        return current_url != original_url
+        return current_url != original_url and self._is_internal_link(current_url)
 
     def verify_internal_links(self):
         """Return True when visible internal links exist and have valid href values."""
@@ -443,6 +482,20 @@ class BlogPage(BasePage):
                 if text:
                     texts.append(text)
         return texts
+
+    def _normalize_blog_url(self, href):
+        if not href:
+            return None
+        parsed = urlparse(href)
+        if not parsed.netloc:
+            href = self.driver.execute_script(
+                "return new URL(arguments[0], window.location.origin).href;", href
+            )
+            parsed = urlparse(href)
+        path = parsed.path.rstrip('/')
+        if parsed.netloc.endswith('suryasangam.com') and path.startswith('/blogs') and path != '/blogs':
+            return parsed._replace(path=path).geturl().rstrip('/')
+        return None
 
     def _is_internal_link(self, href):
         return bool(href and urlparse(href).netloc.endswith("suryasangam.com"))

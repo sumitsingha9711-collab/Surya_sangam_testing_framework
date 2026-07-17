@@ -1,6 +1,10 @@
 ﻿"""Pytest configuration, screenshots, and text reporting."""
 
+import json
+import re
+import shutil
 import smtplib
+from pathlib import Path
 
 import pytest
 
@@ -12,6 +16,12 @@ from utils.screenshot import capture_screenshot
 
 
 WEBSITE_URL = "https://www.suryasangam.com/"
+
+
+def _safe_test_id(name: str) -> str:
+    """Return a filesystem-safe short identifier for a test name."""
+    safe = re.sub(r"[^0-9A-Za-z._-]", "_", name)
+    return safe[:120]
 
 
 def pytest_configure(config):
@@ -37,10 +47,70 @@ def pytest_runtest_makereport(item, call):
         return
 
     screenshot_path = None
+    page_html_path = ""
+    console_log_path = ""
+    traceback_path = ""
+    chromedriver_version = ""
+    browser_version = ""
+
     if report.failed and "driver" in item.fixturenames:
         active_driver = item.funcargs.get("driver")
         if active_driver:
-            screenshot_path = capture_screenshot(active_driver, item.name)
+            # Screenshot (existing helper)
+            try:
+                screenshot_path = capture_screenshot(active_driver, item.name)
+            except Exception:
+                screenshot_path = None
+
+            # Artifacts directory per test
+                # Artifacts directory (project root / reports)
+                base_reports = Path(__file__).resolve().parent / "reports"
+            artifacts_dir = base_reports / "artifacts" / _safe_test_id(item.nodeid or item.name)
+            try:
+                artifacts_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                artifacts_dir = base_reports / "artifacts"
+
+            # Page HTML snapshot
+            try:
+                page_html_file = artifacts_dir / "page.html"
+                page_html_file.write_text(active_driver.page_source or "", encoding="utf-8")
+                page_html_path = str(page_html_file)
+            except Exception:
+                page_html_path = ""
+
+            # Browser console logs (best-effort)
+            try:
+                logs = []
+                try:
+                    logs = active_driver.get_log("browser")
+                except Exception:
+                    logs = []
+                console_file = artifacts_dir / "console.json"
+                with open(console_file, "w", encoding="utf-8") as fh:
+                    json.dump(logs, fh, ensure_ascii=False, indent=2)
+                console_log_path = str(console_file)
+            except Exception:
+                console_log_path = ""
+
+            # Full traceback text
+            try:
+                tb = getattr(report, "longreprtext", None) or str(report.longrepr)
+                if tb:
+                    tb_file = artifacts_dir / "traceback.txt"
+                    tb_file.write_text(tb, encoding="utf-8")
+                    traceback_path = str(tb_file)
+            except Exception:
+                traceback_path = ""
+
+            # Driver/browser capabilities
+            try:
+                caps = getattr(active_driver, "capabilities", {}) or {}
+                browser_version = caps.get("browserVersion") or caps.get("version") or caps.get("browser_version") or ""
+                chromedriver_version = caps.get("chromedriverVersion") or (caps.get("chrome", {}).get("chromedriverVersion", "") if isinstance(caps.get("chrome", {}), dict) else caps.get("chromedriverVersion", ""))
+            except Exception:
+                chromedriver_version = ""
+                browser_version = ""
 
     if report.passed:
         status = "PASS"
@@ -60,16 +130,24 @@ def pytest_runtest_makereport(item, call):
     if hasattr(item, "callspec"):
         result_name = f"{result_name} [{item.callspec.id}]"
 
-    item.config.surya_report.add_result(
-        {
-            "name": result_name,
-            "category": _test_category(item),
-            "status": status,
-            "duration": report.duration,
-            "reason": reason,
-            "screenshot": str(screenshot_path) if screenshot_path else "",
-        }
-    )
+    result = {
+        "name": result_name,
+        "category": _test_category(item),
+        "status": status,
+        "duration": getattr(report, "duration", 0),
+        "reason": reason,
+        "screenshot": str(screenshot_path) if screenshot_path else "",
+        "traceback": getattr(report, "longreprtext", "") or str(getattr(report, "longrepr", "")),
+        "traceback_path": traceback_path,
+        "captured_stdout": getattr(report, "capstdout", ""),
+        "captured_stderr": getattr(report, "capstderr", ""),
+        "page_html_path": page_html_path,
+        "browser_console_log_path": console_log_path,
+        "chromedriver_version": chromedriver_version,
+        "browser_version": browser_version,
+    }
+
+    item.config.surya_report.add_result(result)
 
 
 def _test_category(item):

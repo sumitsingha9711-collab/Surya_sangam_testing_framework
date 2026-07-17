@@ -123,14 +123,41 @@ class ReportGenerator:
         ]
         if result.get("reason"):
             lines.extend(["Problem Details:", result["reason"]])
+        # Attach screenshot path if present
         if result.get("screenshot"):
-            lines.extend(
-                [
-                    "Screenshot Evidence:",
-                    result["screenshot"],
-                    "Open this image to see the exact browser state at failure.",
-                ]
-            )
+            lines.extend([
+                "Screenshot Evidence:",
+                result["screenshot"],
+                "Open this image to see the exact browser state at failure.",
+            ])
+
+        # Traceback excerpt and full path
+        tb = result.get("traceback") or ""
+        if tb:
+            excerpt = tb[:1000]
+            lines.extend(["Full Traceback (excerpt):", excerpt])
+            if result.get("traceback_path"):
+                lines.append(f"Full traceback saved: {result.get('traceback_path')}")
+
+        # Captured stdout/stderr excerpts
+        capout = result.get("captured_stdout") or ""
+        if capout:
+            lines.extend(["Captured STDOUT (excerpt):", capout[:500]])
+        caperr = result.get("captured_stderr") or ""
+        if caperr:
+            lines.extend(["Captured STDERR (excerpt):", caperr[:500]])
+
+        # Page HTML and console log references
+        if result.get("page_html_path"):
+            lines.append(f"Page HTML snapshot: {result.get('page_html_path')}")
+        if result.get("browser_console_log_path"):
+            lines.append(f"Browser console log: {result.get('browser_console_log_path')}")
+
+        # Driver/browser version info
+        if result.get("chromedriver_version"):
+            lines.append(f"Chromedriver: {result.get('chromedriver_version')}")
+        if result.get("browser_version"):
+            lines.append(f"Browser: {result.get('browser_version')}")
         lines.extend(["---", ""])
         return lines
 
