@@ -6,6 +6,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from locators.contact_form_component_locators import ContactFormComponentLocators
+from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.common.by import By
 
 
 class ContactFormComponent:
@@ -20,7 +22,18 @@ class ContactFormComponent:
         return self._wait(ContactFormComponentLocators.PAGE_HEADING)
 
     def get_form(self):
-        return self._wait(ContactFormComponentLocators.FORM)
+        try:
+            return self._wait(ContactFormComponentLocators.FORM)
+        except TimeoutException:
+            # Some site layouts host the contact form on a separate Contact page.
+            # Attempt to navigate to that page and retry locating the form.
+            try:
+                contact_link = self.driver.find_element(By.XPATH, "//a[normalize-space()='Contact Us' or contains(normalize-space(.),'Contact')]")
+                contact_link.click()
+            except Exception:
+                # If no contact navigation is present, re-raise the original timeout.
+                raise
+            return self._wait(ContactFormComponentLocators.FORM)
 
     def is_visible(self) -> bool:
         return self.get_form().is_displayed()
@@ -106,7 +119,8 @@ class ContactFormComponent:
 
     def success_message(self) -> str:
         try:
-            element = WebDriverWait(self.driver, 5).until(
+            # Use the component timeout to allow slower responses to surface success text.
+            element = WebDriverWait(self.driver, self.timeout).until(
                 EC.visibility_of_element_located(ContactFormComponentLocators.SUCCESS_MESSAGE)
             )
             return element.text.strip()
