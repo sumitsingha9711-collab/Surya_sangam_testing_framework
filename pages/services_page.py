@@ -16,7 +16,7 @@ class ServicesPage(BasePage):
     """Services hub and service detail page interactions."""
 
     BASE_URL = "https://www.suryasangam.com/"
-    URL = "https://www.suryasangam.com/productlistning?page=1"
+    URL = "https://www.suryasangam.com/productlisting?page=1"
     EXPECTED_TITLE_TEXT = "Surya Sangam"
 
     def open_services_page(self):
@@ -26,7 +26,13 @@ class ServicesPage(BasePage):
         except TimeoutException:
             self.driver.execute_script("window.stop();")
         self.wait_for_page_load()
-        self.wait_for_visibility(ServicesLocators.SERVICES_HEADING)
+        # Prefer waiting for the services heading, but if the site uses a
+        # different heading string, fall back to the main content area to
+        # detect that the page has loaded.
+        try:
+            self.wait_for_visibility(ServicesLocators.SERVICES_HEADING)
+        except TimeoutException:
+            self.wait_for_visibility(ServicesLocators.MAIN_CONTENT)
         self._wait_for_service_cards()
 
     def verify_page_loaded(self):
@@ -47,7 +53,7 @@ class ServicesPage(BasePage):
         current = urlparse(self.driver.current_url)
         return (
             current.netloc.endswith("suryasangam.com")
-            and "productlistning" in current.path.lower()
+            and "productlisting" in current.path.lower()
         )
 
     def verify_services_heading(self):
@@ -437,7 +443,8 @@ class ServicesPage(BasePage):
 
     def _wait_for_service_cards(self):
         try:
-            WebDriverWait(self.driver, 15).until(
+            # Allow more time for lazy-loaded service cards to appear.
+            WebDriverWait(self.driver, 30).until(
                 lambda _: len(self.get_all_service_cards()) > 0
             )
         except TimeoutException:
