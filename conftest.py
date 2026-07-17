@@ -83,8 +83,11 @@ def _test_category(item):
         "navigation",
         "buttons",
         "contact_validation",
+        "blogs",
     ):
         if item.get_closest_marker(marker):
+            if marker == "blogs":
+                return "Blogs"
             return "Contact Validation" if marker == "contact_validation" else marker.title()
     return "General"
 
