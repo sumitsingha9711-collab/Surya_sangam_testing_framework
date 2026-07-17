@@ -1,4 +1,4 @@
-﻿"""Pytest configuration, fixtures, screenshots, and text reporting."""
+"""Pytest configuration, fixtures, screenshots, and text reporting."""
 
 import smtplib
 
@@ -68,7 +68,7 @@ def pytest_runtest_makereport(item, call):
 
 def _test_category(item):
     """Return the primary functional area marker for report grouping."""
-    for marker in ("calculator", "about", "homepage", "navigation", "buttons"):
+    for marker in ("contact", "calculator", "about", "homepage", "navigation", "buttons"):
         if item.get_closest_marker(marker):
             return marker.title()
     return "General"

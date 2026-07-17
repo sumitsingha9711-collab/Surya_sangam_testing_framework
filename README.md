@@ -10,6 +10,7 @@ Python, Selenium, and Pytest automation for the Surya Sangam website using Page 
 - Responsive layout checks
 - Footer and social links
 - Rooftop Solar Estimator validation and calculations
+- Contact page form, security, contact-information, and button checks
 
 ## Structure
 
@@ -38,6 +39,7 @@ pytest
 pytest -m calculator
 pytest -m homepage
 pytest -m about
+pytest -m contact
 ```
 
 The existing Pytest hook captures failure screenshots under `screenshots/` and generates `reports/execution_report.txt`. No test creates a separate reporting system.

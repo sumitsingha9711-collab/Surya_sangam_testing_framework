@@ -58,3 +58,18 @@ pytest --collect-only
 pytest -m calculator
 pytest
 ```
+## Contact Page Example
+
+The Contact page follows the same page-object flow as the calculator:
+
+```python
+contact_page = ContactPage(driver)
+contact_page.open_contact_page()
+contact_page.enter_name("Automation Tester")
+contact_page.enter_email("automation@example.com")
+contact_page.enter_phone("9876543210")
+contact_page.enter_message("Solar enquiry")
+contact_page.submit_form()
+```
+
+The live form also requires average electricity bill and address values. Use `ContactPage.fill_required_fields()` when submitting a complete dataset. Tests should accept native validation, inline/alert feedback, or a safe in-page response when the external submission service does not return a success message.
