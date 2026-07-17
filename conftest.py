@@ -1,4 +1,4 @@
-"""Pytest configuration, fixtures, screenshots, and text reporting."""
+﻿"""Pytest configuration, fixtures, screenshots, and text reporting."""
 
 import smtplib
 
@@ -52,11 +52,17 @@ def pytest_runtest_makereport(item, call):
         status = "FAIL"
         reason = str(report.longrepr)
 
+    result_name = (
+        item.function.__doc__.strip()
+        if item.function.__doc__
+        else item.name.replace("_", " ").title()
+    )
+    if hasattr(item, "callspec"):
+        result_name = f"{result_name} [{item.callspec.id}]"
+
     item.config.surya_report.add_result(
         {
-            "name": item.function.__doc__.strip()
-            if item.function.__doc__
-            else item.name.replace("_", " ").title(),
+            "name": result_name,
             "category": _test_category(item),
             "status": status,
             "duration": report.duration,
@@ -68,9 +74,16 @@ def pytest_runtest_makereport(item, call):
 
 def _test_category(item):
     """Return the primary functional area marker for report grouping."""
-    for marker in ("contact", "calculator", "about", "homepage", "navigation", "buttons"):
+    for marker in (
+        "calculator",
+        "about",
+        "homepage",
+        "navigation",
+        "buttons",
+        "contact_validation",
+    ):
         if item.get_closest_marker(marker):
-            return marker.title()
+            return "Contact Validation" if marker == "contact_validation" else marker.title()
     return "General"
 
 

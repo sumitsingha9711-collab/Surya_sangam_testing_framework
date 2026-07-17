@@ -20,10 +20,18 @@ class ReportGenerator:
         self.browser = browser
         self.start_time = datetime.now()
         self.test_results = []
+        self._seen_results = {}
 
     def add_result(self, result):
-        """Add a single pytest result dictionary."""
-        self.test_results.append(result)
+        """Add a single pytest result dictionary while keeping unique logs."""
+        result_key = self._build_result_key(result)
+        existing_index = self._seen_results.get(result_key)
+
+        if existing_index is None:
+            self._seen_results[result_key] = len(self.test_results)
+            self.test_results.append(result)
+        else:
+            self.test_results[existing_index] = result
 
     def generate(self):
         """Write the execution report to the reports directory."""
@@ -93,6 +101,15 @@ class ReportGenerator:
 
         REPORT_FILE.write_text("\n".join(lines), encoding="utf-8")
         return REPORT_FILE
+
+    def _build_result_key(self, result):
+        return (
+            result.get("name", ""),
+            result.get("category", "General"),
+            result.get("status", ""),
+            result.get("reason", ""),
+            result.get("screenshot", ""),
+        )
 
     def _count_by_status(self, status):
         return sum(1 for result in self.test_results if result["status"] == status)
