@@ -56,6 +56,8 @@ try {
     }
     Set-Location -LiteralPath $testRoot
     $env:PYTHONUNBUFFERED = '1'
+    # Scheduled tasks run without an interactive desktop; Chrome must be headless.
+    $env:SELENIUM_HEADLESS = '1'
 
     $arguments = @('-m', 'pytest', '-c', $pytestConfig)
     if (-not [string]::IsNullOrWhiteSpace($PytestArguments)) {

@@ -1,15 +1,21 @@
 # Selenium Scheduler Run Summary
 
-When the scheduled task starts, Windows launches PowerShell with the highest privileges under the configured service account or `SYSTEM` account.
+When the scheduled task starts, Windows launches PowerShell under the configured `SYSTEM` or service account.
 
-1. The wrapper changes to `D:\selenium testing\surya_sangam_test\surya_sangam_testing`.
-2. It creates the `logs\` directory and starts a timestamped execution log.
-3. It activates the project Python virtual environment.
-4. It starts pytest from the project root.
-5. Selenium creates a headless Chrome session through Selenium Manager with GPU and sandbox disabled and a 1920Ã—1080 viewport.
-6. Tests execute without requiring a logged-in user or display.
-7. The pytest session writes the execution report to `reports\execution_report.txt`.
-8. Failed browser tests save diagnostic screenshots and artifacts.
-9. The wrapper records the completion status and returns pytestâ€™s exit code to Task Scheduler.
+1. `run_selenium_tests.ps1` resolves the project root and changes to it.
+2. It creates `logs\` and starts a timestamped transcript.
+3. It locates and activates the project `.venv`.
+4. It sets `PYTHONUNBUFFERED=1` and `SELENIUM_HEADLESS=1`.
+5. It runs pytest from the project root.
+6. Selenium Manager starts headless Chrome with the configured viewport and browser options.
+7. Pytest writes `reports\execution_report.txt`.
+8. Failed browser tests save screenshots and diagnostic artifacts.
+9. The wrapper records pytest's exit code and returns it to Task Scheduler.
 
-Successful runs return exit code `0`. Missing dependencies, browser startup errors, or failed tests produce a non-zero exit code and are recorded in the timestamped file under `logs\`.
+A task state of `Ready` means it is waiting for its next trigger; `Running` means the run is active. A successful run returns exit code `0`. Missing dependencies, browser startup errors, network failures, or failed tests produce a non-zero exit code and are recorded in `logs\`.
+
+The scheduled task must be registered once during deployment with:
+
+```powershell
+.\scripts\Register-SuryaSangamTask.ps1 -StartTime '21:40'
+```

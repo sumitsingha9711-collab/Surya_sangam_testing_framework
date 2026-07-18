@@ -2,7 +2,7 @@
 param(
     [string]$ProjectRoot = '',
     [string]$TaskName = 'Surya Sangam Selenium Tests',
-    [string]$StartTime = '02:00'
+    [string]$StartTime = '21:40'
 )
 
 $ErrorActionPreference = 'Stop'

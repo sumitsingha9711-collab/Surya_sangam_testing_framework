@@ -10,7 +10,7 @@ Surya Sangam Selenium Automation
 
 ## Executive decision
 
-**Status: NOT READY for production scheduling yet.**
+**Status: Deployment procedure documented; production readiness still requires server-side validation.**
 
 The project is suitable for staging validation. The moved scripts now resolve the project root correctly, and a wrapper smoke test passed. Production use should wait until the operational prerequisites and validation steps below are completed.
 
@@ -24,7 +24,7 @@ The project is suitable for staging validation. The moved scripts now resolve th
 | Chrome installed locally | Present |
 | Test collection | Passed: 121 tests collected |
 | Wrapper smoke test | Passed: 1 test passed, exit code 0 |
-| Scheduled task | Not found on the current machine |
+| Scheduled task | Must be registered on the live server during deployment; verify with Get-ScheduledTask |
 | Full live-site suite | Not completed |
 | Generated-artifact protection | .gitignore is missing |
 | Pytest marker configuration | contact marker is missing |
@@ -179,7 +179,7 @@ Run as Administrator:
 
 ~~~powershell
 Set-Location 'D:\selenium testing\surya_sangam_test\surya_sangam_testing'
-& .\scripts\Register-SuryaSangamTask.ps1 -StartTime '02:00'
+& .\scripts\Register-SuryaSangamTask.ps1 -StartTime '21:40'
 
 Get-ScheduledTask -TaskName 'Surya Sangam Selenium Tests'
 Start-ScheduledTask -TaskName 'Surya Sangam Selenium Tests'
@@ -247,4 +247,4 @@ Enable-ScheduledTask -TaskName 'Surya Sangam Selenium Tests'
 
 ## Final recommendation
 
-Proceed to staging deployment and operational validation. Do not enable unattended production execution until the scheduled task, service-account permissions, headless Chrome check, artifact handling, and full approved test run are complete.
+Proceed to server-side operational validation. Do not treat unattended production execution as complete until the task is registered, manually started, the headless run succeeds, email is validated if required, and the full approved test run is reviewed. See LIVE_SERVER_SCHEDULE_SETUP.md and POWERSHELL_SCHEDULER_COMMANDS.md.

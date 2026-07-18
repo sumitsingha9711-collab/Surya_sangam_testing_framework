@@ -1,8 +1,12 @@
-# Windows Server Selenium scheduling
+# Windows Server Selenium Scheduling
 
-Run the following from an elevated PowerShell window on the server. The scheduled task uses the `SYSTEM` service account, so it runs when no user is logged in and requires no stored password.
+This project uses Windows Task Scheduler to run Selenium tests daily through `scripts\run_selenium_tests.ps1`.
 
-## One-time setup
+For the complete live-server procedure, see [LIVE_SERVER_SCHEDULE_SETUP.md](LIVE_SERVER_SCHEDULE_SETUP.md). For command reference, see [POWERSHELL_SCHEDULER_COMMANDS.md](POWERSHELL_SCHEDULER_COMMANDS.md).
+
+## One-time server setup
+
+Run PowerShell as Administrator:
 
 ```powershell
 Set-Location 'D:\selenium testing\surya_sangam_test\surya_sangam_testing'
@@ -12,54 +16,64 @@ python -m pip install --upgrade pip
 python -m pip install -r .\requirements.txt
 ```
 
-Install Chrome for all users and confirm the service account can access it. Selenium 4.27.1 invokes Selenium Manager automatically; no `chromedriver.exe` or `webdriver-manager` package is required.
+Install Chrome for all users and confirm that the scheduled account can access the project, virtual environment, Chrome, and runtime folders. Selenium 4.27.1 uses Selenium Manager; a separate chromedriver or webdriver-manager package is not required.
 
 ## Manual validation
 
 ```powershell
 Set-Location 'D:\selenium testing\surya_sangam_test\surya_sangam_testing'
-& .\scripts\run_selenium_tests.ps1
+& .\scripts\run_selenium_tests.ps1 -PytestArguments 'tests/test_homepage.py -x'
 Get-ChildItem .\logs, .\reports
 ```
 
-The wrapper returns pytest's exit code, creates a timestamped transcript in `logs\`, and the pytest session writes `reports\execution_report.txt`. A non-zero code indicates a failed or interrupted run.
-
-To run a small smoke test first:
-
-```powershell
-& .\scripts\run_selenium_tests.ps1 -PytestArguments 'tests/test_homepage.py -x'
-```
+The wrapper creates a timestamped transcript under `logs\` and pytest writes `reports\execution_report.txt`. The wrapper returns pytest's exit code.
 
 ## Register the daily task
 
+Registration is a required deployment step; copying the project files alone does not create a scheduled task. Use 24-hour local server time:
+
 ```powershell
 Set-Location 'D:\selenium testing\surya_sangam_test\surya_sangam_testing'
-& .\scripts\Register-SuryaSangamTask.ps1 -StartTime '02:00'
+& .\scripts\Register-SuryaSangamTask.ps1 -StartTime '21:40'
 Get-ScheduledTask -TaskName 'Surya Sangam Selenium Tests'
-Start-ScheduledTask -TaskName 'Surya Sangam Selenium Tests'
-Get-WinEvent -LogName 'Microsoft-Windows-TaskScheduler/Operational' -MaxEvents 20
 ```
 
-The `-StartTime` value is local server time and can be changed without editing the wrapper. The task is configured for highest privileges, starts when available after downtime, allows operation on batteries, stops overlapping runs, and has a four-hour execution limit.
+The task runs as `SYSTEM`, starts when available after downtime, prevents overlapping instances, permits battery operation, and has a four-hour execution limit. The wrapper sets `SELENIUM_HEADLESS=1`, so no visible Chrome window is expected during scheduled runs.
 
-## Task Scheduler GUI equivalent
-
-Create Basic Task â†’ name `Surya Sangam Selenium Tests` â†’ Daily â†’ 2:00 AM â†’ Start a program. Set Program to `PowerShell.exe`; set arguments to `-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "D:\selenium testing\surya_sangam_test\surya_sangam_testing\scripts\run_selenium_tests.ps1"`; set Start in to `D:\selenium testing\surya_sangam_test\surya_sangam_testing`. In Properties â†’ General select **Run whether user is logged on or not** and **Run with highest privileges**. In Conditions clear the AC-power restriction if required. Use the `SYSTEM` account or a dedicated service account with access to the project, virtual environment, Chrome, and log directories.
-
-## Verification checklist
-
-- `python --version` reports Python 3.13.7 and `python -c "import selenium; print(selenium.__version__)"` reports 4.27.1.
-- `python -c "from selenium import webdriver; from selenium.webdriver.chrome.options import Options; o=Options(); o.add_argument('--headless=new'); d=webdriver.Chrome(options=o); print(d.capabilities['browserVersion']); d.quit()"` succeeds. This verifies Selenium Manager and headless Chrome without a display.
-- The manual wrapper run creates a log and `reports\execution_report.txt`.
-- `Start-ScheduledTask` completes and the task's **Last Run Result** is `0x0` for a passing run.
-- The service account has network/DNS access to `https://www.suryasangam.com/` and write permission for `logs\`, `reports\`, and screenshots/artifacts.
-
-## Git cleanup
-
-Generated reports and logs are ignored by `.gitignore`. If generated reports are already tracked, remove them from the index while keeping local files:
+## Verify and test
 
 ```powershell
-git rm -r --cached --ignore-unmatch reports reports logs
-git add .gitignore
-git commit -m "Ignore generated Selenium reports and scheduler logs"
+Get-ScheduledTaskInfo -TaskName 'Surya Sangam Selenium Tests' |
+    Select-Object LastRunTime, LastTaskResult, NextRunTime, NumberOfMissedRuns
+
+Start-ScheduledTask -TaskName 'Surya Sangam Selenium Tests'
 ```
+
+`Ready` means the task is waiting. `Running` means a test run is active. A `LastTaskResult` of `0` or `0x0` indicates success.
+
+## Stop, disable, or remove
+
+```powershell
+Stop-ScheduledTask -TaskName 'Surya Sangam Selenium Tests'
+Disable-ScheduledTask -TaskName 'Surya Sangam Selenium Tests'
+Enable-ScheduledTask -TaskName 'Surya Sangam Selenium Tests'
+Unregister-ScheduledTask -TaskName 'Surya Sangam Selenium Tests' -Confirm:$false
+```
+
+## GUI equivalent
+
+Create a daily task named `Surya Sangam Selenium Tests`. Use `PowerShell.exe` with these arguments:
+
+```text
+-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "D:\selenium testing\surya_sangam_test\surya_sangam_testing\scripts\run_selenium_tests.ps1"
+```
+
+Set the working directory to the project root. Select **Run whether user is logged on or not** and **Run with highest privileges**. Use `SYSTEM` or a dedicated service account with the required project, Chrome, network, and write permissions.
+
+## Validation checklist
+
+- Chrome launches in headless mode under the scheduled account.
+- The wrapper creates a log and report.
+- `Start-ScheduledTask` completes.
+- Task Scheduler reports last result `0x0` for a passing run.
+- The account can access the website and SMTP service, if email is enabled.
