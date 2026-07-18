@@ -41,8 +41,8 @@ class CalculatorLocators:
     )
     LOCATION_SUGGESTIONS = (
         By.XPATH,
-                "//*[@role=''option''] | "
-        "//div[contains(@class, ''pac-container'')]//div[contains(@class, ''pac-item'')] | "
+        "//*[@role='option'] | "
+        "//div[contains(@class, 'pac-container')]//div[contains(@class, 'pac-item')] | "
         "//li[contains(@class, 'suggestion')]",
     )
     CURRENT_LOCATION_BUTTON = (

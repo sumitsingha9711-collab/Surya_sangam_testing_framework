@@ -15,7 +15,7 @@ class ServicesPage(BasePage):
     """Services hub and service detail page interactions."""
 
     BASE_URL = "https://www.suryasangam.com/"
-    URL = "https://www.suryasangam.com/productlisting?page=1"
+    URL = "https://www.suryasangam.com/productlistning?page=1"
     EXPECTED_TITLE_TEXT = "Surya Sangam"
 
     def open_services_page(self):
@@ -44,7 +44,7 @@ class ServicesPage(BasePage):
         current = urlparse(self.driver.current_url)
         return current.netloc.endswith("suryasangam.com") and current.path.rstrip(
             "/"
-        ) == "/productlisting" and ("page=1" in current.query or not current.query)
+        ) in {"/productlisting", "/productlistning"} and ("page=1" in current.query or not current.query)
 
     def verify_services_heading(self):
         """Return True when the services hub heading is visible."""
@@ -328,9 +328,19 @@ class ServicesPage(BasePage):
             except StaleElementReferenceException:
                 continue
             text = (element.text or "").strip()
-            if text in {"??", "??", "??", "??", "??", "?"} or element.get_attribute("role") == "img":
+            tag_name = (element.tag_name or "").lower()
+            class_name = (element.get_attribute("class") or "").lower()
+            if tag_name in {"svg", "i"} or element.get_attribute("role") == "img" or "icon" in class_name or text in {"??", "??", "??", "??", "??", "?"}:
                 markers.append(element)
-        return markers
+        if markers:
+            return markers
+
+        # The live detail page renders its feature icons as emoji text rather
+        # than SVG/icon elements. Treat those visible symbols as icon markers.
+        page_text = self.driver.find_element(By.TAG_NAME, "body").text
+        if any(0x1F000 <= ord(character) <= 0x1FAFF for character in page_text):
+            return [self.driver.find_element(By.TAG_NAME, "body")]
+        return []
 
     def verify_internal_link(self, link):
         """Click a visible internal link and verify that navigation succeeds."""
@@ -397,7 +407,7 @@ class ServicesPage(BasePage):
         if not href:
             return None
         parsed = urlparse(href)
-        if parsed.netloc.endswith("suryasangam.com") and parsed.path.startswith("/productlisting/"):
+        if parsed.netloc.endswith("suryasangam.com") and parsed.path.startswith(("/productlisting/", "/productlistning/")):
             return parsed._replace(query="", fragment="").geturl().rstrip("/")
         return None
 

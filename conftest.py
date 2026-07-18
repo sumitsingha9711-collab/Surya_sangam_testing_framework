@@ -1,8 +1,7 @@
-﻿"""Pytest configuration, screenshots, and text reporting."""
+"""Pytest configuration, diagnostics, screenshots, and reporting."""
 
 import json
 import re
-import shutil
 import smtplib
 from pathlib import Path
 
@@ -16,12 +15,33 @@ from utils.screenshot import capture_screenshot
 
 
 WEBSITE_URL = "https://www.suryasangam.com/"
+REPORTS_DIR = Path(__file__).resolve().parent / "reports"
 
 
 def _safe_test_id(name: str) -> str:
     """Return a filesystem-safe short identifier for a test name."""
     safe = re.sub(r"[^0-9A-Za-z._-]", "_", name)
     return safe[:120]
+
+
+def _safe_value(value):
+    """Serialize test parameters without exposing common secrets."""
+    if isinstance(value, dict):
+        return {
+            str(key): (
+                "[REDACTED]"
+                if re.search(r"password|secret|token|api[_-]?key", str(key), re.I)
+                else _safe_value(item)
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_safe_value(item) for item in value]
+    try:
+        json.dumps(value)
+        return value
+    except TypeError:
+        return repr(value)
 
 
 def pytest_configure(config):
@@ -31,122 +51,186 @@ def pytest_configure(config):
 
 @pytest.fixture
 def driver():
-    """Create and quit a Chrome browser for each test."""
+    """Create and reliably quit a headless Chrome browser for each test."""
     active_driver = DriverFactory.create_chrome_driver()
-    yield active_driver
-    active_driver.quit()
+    try:
+        yield active_driver
+    finally:
+        active_driver.quit()
 
 
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item, call):
-    """Capture screenshots on failures and collect report data."""
-    outcome = yield
-    report = outcome.get_result()
+def _driver_state(active_driver):
+    """Read browser state and capabilities without hiding the test failure."""
+    state = {
+        "url": "",
+        "title": "",
+        "browser_version": "",
+        "chromedriver_version": "",
+    }
+    if not active_driver:
+        return state
 
-    if report.when != "call":
-        return
+    try:
+        state["url"] = active_driver.current_url or ""
+    except Exception:
+        pass
+    try:
+        state["title"] = active_driver.title or ""
+    except Exception:
+        pass
+    try:
+        capabilities = getattr(active_driver, "capabilities", {}) or {}
+        state["browser_version"] = (
+            capabilities.get("browserVersion")
+            or capabilities.get("version")
+            or capabilities.get("browser_version")
+            or ""
+        )
+        chrome_caps = capabilities.get("chrome", {})
+        state["chromedriver_version"] = (
+            capabilities.get("chromedriverVersion")
+            or (
+                chrome_caps.get("chromedriverVersion", "")
+                if isinstance(chrome_caps, dict)
+                else ""
+            )
+        )
+    except Exception:
+        pass
+    return state
 
-    screenshot_path = None
-    page_html_path = ""
-    console_log_path = ""
-    traceback_path = ""
-    chromedriver_version = ""
-    browser_version = ""
 
-    if report.failed and "driver" in item.fixturenames:
-        active_driver = item.funcargs.get("driver")
-        if active_driver:
-            # Screenshot (existing helper)
-            try:
-                screenshot_path = capture_screenshot(active_driver, item.name)
-            except Exception:
-                screenshot_path = None
+def _write_failure_artifacts(item, report, active_driver):
+    """Capture failure evidence once for the current test node."""
+    paths = {
+        "screenshot": "",
+        "page_html_path": "",
+        "browser_console_log_path": "",
+        "performance_log_path": "",
+        "traceback_path": "",
+    }
+    if not active_driver:
+        return paths
 
-            # Artifacts directory per test
-                # Artifacts directory (project root / reports)
-                base_reports = Path(__file__).resolve().parent / "reports"
-            artifacts_dir = base_reports / "artifacts" / _safe_test_id(item.nodeid or item.name)
-            try:
-                artifacts_dir.mkdir(parents=True, exist_ok=True)
-            except Exception:
-                artifacts_dir = base_reports / "artifacts"
+    artifacts_dir = REPORTS_DIR / "artifacts" / _safe_test_id(item.nodeid)
+    try:
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return paths
 
-            # Page HTML snapshot
-            try:
-                page_html_file = artifacts_dir / "page.html"
-                page_html_file.write_text(active_driver.page_source or "", encoding="utf-8")
-                page_html_path = str(page_html_file)
-            except Exception:
-                page_html_path = ""
+    try:
+        screenshot_path = capture_screenshot(active_driver, item.nodeid)
+        paths["screenshot"] = str(screenshot_path)
+    except Exception:
+        pass
 
-            # Browser console logs (best-effort)
-            try:
-                logs = []
-                try:
-                    logs = active_driver.get_log("browser")
-                except Exception:
-                    logs = []
-                console_file = artifacts_dir / "console.json"
-                with open(console_file, "w", encoding="utf-8") as fh:
-                    json.dump(logs, fh, ensure_ascii=False, indent=2)
-                console_log_path = str(console_file)
-            except Exception:
-                console_log_path = ""
+    try:
+        page_html_file = artifacts_dir / "page.html"
+        page_html_file.write_text(active_driver.page_source or "", encoding="utf-8")
+        paths["page_html_path"] = str(page_html_file)
+    except Exception:
+        pass
 
-            # Full traceback text
-            try:
-                tb = getattr(report, "longreprtext", None) or str(report.longrepr)
-                if tb:
-                    tb_file = artifacts_dir / "traceback.txt"
-                    tb_file.write_text(tb, encoding="utf-8")
-                    traceback_path = str(tb_file)
-            except Exception:
-                traceback_path = ""
+    for log_type, key, filename in (
+        ("browser", "browser_console_log_path", "console.json"),
+        ("performance", "performance_log_path", "performance.json"),
+    ):
+        try:
+            log_entries = active_driver.get_log(log_type)
+            log_file = artifacts_dir / filename
+            log_file.write_text(
+                json.dumps(log_entries, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            paths[key] = str(log_file)
+        except Exception:
+            pass
 
-            # Driver/browser capabilities
-            try:
-                caps = getattr(active_driver, "capabilities", {}) or {}
-                browser_version = caps.get("browserVersion") or caps.get("version") or caps.get("browser_version") or ""
-                chromedriver_version = caps.get("chromedriverVersion") or (caps.get("chrome", {}).get("chromedriverVersion", "") if isinstance(caps.get("chrome", {}), dict) else caps.get("chromedriverVersion", ""))
-            except Exception:
-                chromedriver_version = ""
-                browser_version = ""
+    try:
+        traceback_text = getattr(report, "longreprtext", None) or str(report.longrepr)
+        if traceback_text:
+            traceback_file = artifacts_dir / "traceback.txt"
+            traceback_file.write_text(traceback_text, encoding="utf-8")
+            paths["traceback_path"] = str(traceback_file)
+    except Exception:
+        pass
 
-    if report.passed:
-        status = "PASS"
-        reason = ""
-    elif report.skipped:
-        status = "SKIP"
-        reason = str(report.longrepr)
-    else:
-        status = "FAIL"
-        reason = str(report.longrepr)
+    return paths
 
-    result_name = (
+
+def _result_name(item):
+    name = (
         item.function.__doc__.strip()
         if item.function.__doc__
         else item.name.replace("_", " ").title()
     )
     if hasattr(item, "callspec"):
-        result_name = f"{result_name} [{item.callspec.id}]"
+        name = f"{name} [{item.callspec.id}]"
+    return name
 
-    result = {
-        "name": result_name,
-        "category": _test_category(item),
-        "status": status,
-        "duration": getattr(report, "duration", 0),
-        "reason": reason,
-        "screenshot": str(screenshot_path) if screenshot_path else "",
-        "traceback": getattr(report, "longreprtext", "") or str(getattr(report, "longrepr", "")),
-        "traceback_path": traceback_path,
-        "captured_stdout": getattr(report, "capstdout", ""),
-        "captured_stderr": getattr(report, "capstderr", ""),
-        "page_html_path": page_html_path,
-        "browser_console_log_path": console_log_path,
-        "chromedriver_version": chromedriver_version,
-        "browser_version": browser_version,
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Record call results and failures from setup, call, and teardown phases."""
+    outcome = yield
+    report = outcome.get_result()
+
+    # Keep normal call results and any setup/teardown failure. This prevents
+    # fixture failures from disappearing from the production report.
+    if report.when != "call" and not report.failed:
+        return
+
+    active_driver = item.funcargs.get("driver") if "driver" in item.fixturenames else None
+    state = _driver_state(active_driver)
+    paths = _write_failure_artifacts(item, report, active_driver) if report.failed else {
+        "screenshot": "",
+        "page_html_path": "",
+        "browser_console_log_path": "",
+        "performance_log_path": "",
+        "traceback_path": "",
     }
 
+    if report.failed:
+        status = "FAIL"
+    elif report.skipped:
+        status = "SKIP"
+    else:
+        status = "PASS"
+
+    location = getattr(item, "location", ("", 0, ""))
+    excinfo = getattr(report, "excinfo", None)
+    exception_type = ""
+    if excinfo is not None and getattr(excinfo, "type", None) is not None:
+        exception_type = excinfo.type.__name__
+
+    result = {
+        "name": _result_name(item),
+        "nodeid": item.nodeid,
+        "source_file": str(location[0]),
+        "source_line": int(location[1]) + 1,
+        "category": _test_category(item),
+        "phase": report.when,
+        "status": status,
+        "duration": round(float(getattr(report, "duration", 0)), 3),
+        "reason": "" if status == "PASS" else str(report.longrepr),
+        "exception_type": exception_type,
+        "parameters": _safe_value(dict(getattr(item.callspec, "params", {})))
+        if hasattr(item, "callspec")
+        else {},
+        "url": state["url"],
+        "title": state["title"],
+        "screenshot": paths["screenshot"],
+        "traceback": getattr(report, "longreprtext", "")
+        or str(getattr(report, "longrepr", "")),
+        "traceback_path": paths["traceback_path"],
+        "captured_stdout": getattr(report, "capstdout", ""),
+        "captured_stderr": getattr(report, "capstderr", ""),
+        "page_html_path": paths["page_html_path"],
+        "browser_console_log_path": paths["browser_console_log_path"],
+        "performance_log_path": paths["performance_log_path"],
+        "chromedriver_version": state["chromedriver_version"],
+        "browser_version": state["browser_version"],
+    }
     item.config.surya_report.add_result(result)
 
 
@@ -160,19 +244,22 @@ def _test_category(item):
         "homepage",
         "navigation",
         "buttons",
+        "contact",
         "contact_validation",
         "blogs",
     ):
         if item.get_closest_marker(marker):
-            if marker == "blogs":
-                return "Blogs"
-            return "Contact Validation" if marker == "contact_validation" else marker.title()
+            if marker in {"blogs", "blog"}:
+                return "Blogs" if marker == "blogs" else "Blog"
+            if marker == "contact_validation":
+                return "Contact Validation"
+            return marker.replace("_", " ").title()
     return "General"
 
 
 def pytest_sessionfinish(session, exitstatus):
-    """Generate and optionally email the execution report at the end of the run."""
-    report_file = session.config.surya_report.generate()
+    """Generate reports and optionally email the execution result."""
+    report_file = session.config.surya_report.generate(exitstatus)
     if not is_email_configured():
         return
 

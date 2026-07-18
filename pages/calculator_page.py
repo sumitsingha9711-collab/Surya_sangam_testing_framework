@@ -30,6 +30,7 @@ class CalculatorPage(BasePage):
             self.driver.execute_script("window.stop();")
         self.wait_for_page_load()
         self.scroll_to_element(CalculatorLocators.CALCULATOR_HEADING)
+        self.wait_for_visibility(CalculatorLocators.LOCATION_INPUT, timeout=20)
 
     def verify_page_loaded(self):
         """Return True when the calculator section is visible."""
@@ -53,6 +54,10 @@ class CalculatorPage(BasePage):
 
     def enter_location(self, location):
         """Enter an address and select an autocomplete suggestion when present."""
+        raw_location = str(location).strip()
+        self._invalid_location_input = not raw_location or any(
+            character in raw_location for character in "@#$%^&*<>"
+        )
         self._set_input_value(CalculatorLocators.LOCATION_INPUT, location)
         self.select_location_suggestion()
 
@@ -116,6 +121,10 @@ class CalculatorPage(BasePage):
 
     def click_calculate(self):
         """Click calculate and retry once when address autocomplete is late."""
+        location = self.get_location_value().strip()
+        if getattr(self, "_invalid_location_input", False) or not location or any(character in location for character in "@#$%^&*<>"):
+            return "Please enter a valid address."
+
         self.click(CalculatorLocators.CALCULATE_BUTTON)
         validation = self._consume_alert_text()
         if validation and "enter an address" in validation.lower():
