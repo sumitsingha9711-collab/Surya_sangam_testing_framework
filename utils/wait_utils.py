@@ -25,10 +25,16 @@ def wait_for_all_elements_present(driver, locator, timeout=DEFAULT_TIMEOUT):
 
 
 def wait_for_document_ready(driver, timeout=DEFAULT_TIMEOUT):
-    """Wait until the browser reports that the document has loaded."""
+    """Wait until the DOM is ready for Selenium interactions.
+
+    The driver deliberately uses Selenium's ``eager`` page-load strategy, so
+    waiting for ``complete`` here would reintroduce timeouts from unrelated
+    third-party resources. ``interactive`` guarantees the DOM is available;
+    ``complete`` remains valid when it is reached.
+    """
     WebDriverWait(driver, timeout).until(
         lambda active_driver: active_driver.execute_script(
             "return document.readyState"
         )
-        == "complete"
+        in {"interactive", "complete"}
     )
