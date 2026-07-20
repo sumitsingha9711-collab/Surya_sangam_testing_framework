@@ -1,4 +1,4 @@
-"""Email test results with failures/important checks in the body and a PDF of other passes."""
+"""Email failed/skipped test details and attach every test result as a PDF."""
 
 import os
 import re
@@ -8,20 +8,6 @@ from pathlib import Path
 
 
 DEFAULT_SUBJECT = "Surya Sangam Automation Execution Report"
-DEFAULT_IMPORTANT_CATEGORIES = (
-    "Homepage",
-    "Contact",
-    "Contact Validation",
-    "Calculator",
-)
-DEFAULT_IMPORTANT_KEYWORDS = (
-    "homepage",
-    "contact",
-    "calculator",
-    "navigation",
-    "service",
-    "security",
-)
 _TEST_HEADER = re.compile(r"^TC\d+ - (.+)$")
 
 
@@ -30,19 +16,7 @@ class EmailReportConfigError(ValueError):
 
 
 def send_report_email(report_path):
-    """Send a focused email summary and a PDF of the remaining passed tests.
-
-    The report text is split into test-case blocks. Failed and skipped tests are
-    always included in the email body. Passed tests are included in the body
-    when their area or name is considered important. All other passed tests
-    are included in a PDF attachment.
-
-    Optional environment variables:
-        SURYA_REPORT_IMPORTANT_CATEGORIES
-            Comma-separated report areas to include in the email body.
-        SURYA_REPORT_IMPORTANT_KEYWORDS
-            Comma-separated case-insensitive words matched against test names.
-    """
+    """Send failed/skipped details in the email body and all tests in a PDF."""
     report_path = Path(report_path)
     _validate_report(report_path)
 
@@ -109,7 +83,6 @@ def _load_email_config():
 
 def _build_message(config, report_path):
     results = _parse_test_blocks(report_path.read_text(encoding="utf-8"))
-    body_results, passed_for_pdf = _split_results(results)
 
     message = EmailMessage()
     message["From"] = config["sender"]
@@ -117,17 +90,17 @@ def _build_message(config, report_path):
     if config["cc"]:
         message["Cc"] = ", ".join(config["cc"])
     message["Subject"] = config["subject"]
-    message.set_content(_build_email_body(body_results, passed_for_pdf, report_path))
+    message.set_content(_build_email_body(results, report_path))
 
     pdf_bytes = _build_pdf(
-        "Surya Sangam - Passed Test Details",
-        _flatten_pdf_results(passed_for_pdf),
+        "Surya Sangam - Complete Test Results",
+        _flatten_pdf_results(results),
     )
     message.add_attachment(
         pdf_bytes,
         maintype="application",
         subtype="pdf",
-        filename=f"{report_path.stem}_passed_tests.pdf",
+        filename=f"{report_path.stem}_all_tests.pdf",
     )
     return message
 
@@ -147,6 +120,8 @@ def _parse_test_blocks(report_text):
                 "lines": [line.strip()],
                 "status": "",
                 "area": "General",
+                "reason": "",
+                "capture_reason": False,
             }
             continue
 
@@ -155,54 +130,41 @@ def _parse_test_blocks(report_text):
 
         stripped = line.strip()
         current["lines"].append(stripped)
+        if current["capture_reason"] and stripped:
+            current["reason"] = stripped
+            current["capture_reason"] = False
         if stripped in {"PASS", "FAIL", "SKIP"} and not current["status"]:
             current["status"] = stripped
         elif stripped.startswith("Area:"):
             current["area"] = stripped.split(":", 1)[1].strip()
+        elif stripped == "Problem Details:":
+            current["capture_reason"] = True
 
     if current:
         blocks.append(current)
 
+    for block in blocks:
+        block["reason"] = _summarize_reason(block)
     return [block for block in blocks if block["status"]]
 
 
-def _split_results(results):
-    body_results = []
-    passed_for_pdf = []
-
-    for result in results:
-        if result["status"] != "PASS" or _is_important(result):
-            body_results.append(result)
-        else:
-            passed_for_pdf.append(result)
-
-    return body_results, passed_for_pdf
-
-
-def _is_important(result):
-    categories = _configured_list(
-        "SURYA_REPORT_IMPORTANT_CATEGORIES", DEFAULT_IMPORTANT_CATEGORIES
-    )
-    keywords = tuple(
-        word.lower()
-        for word in _configured_list(
-            "SURYA_REPORT_IMPORTANT_KEYWORDS", DEFAULT_IMPORTANT_KEYWORDS
-        )
-    )
-    area = result["area"].casefold()
-    name = result["name"].casefold()
-
-    return any(area == category.casefold() for category in categories) or any(
-        keyword in name for keyword in keywords
-    )
+def _summarize_reason(result):
+    """Return the most useful pytest failure or skip line for an email."""
+    for line in result["lines"]:
+        text = line.strip()
+        if "Skipped:" in text:
+            return text.split("Skipped:", 1)[1].strip()
+        match = re.match(r"^E\s+(.+)$", text)
+        if match:
+            return match.group(1).strip()
+        if any(marker in text for marker in ("AssertionError:", "TimeoutException:", "Error:")):
+            return text
+    return result["reason"]
 
 
-def _build_email_body(body_results, passed_for_pdf, report_path):
-    failed = sum(result["status"] == "FAIL" for result in body_results)
-    skipped = sum(result["status"] == "SKIP" for result in body_results)
-    important_passes = sum(
-        result["status"] == "PASS" for result in body_results
-    )
+def _build_email_body(results, report_path):
+    failed_results = [result for result in results if result["status"] == "FAIL"]
+    skipped_results = [result for result in results if result["status"] == "SKIP"]
 
     lines = [
         "Hello,",
@@ -211,25 +173,31 @@ def _build_email_body(body_results, passed_for_pdf, report_path):
         f"Source report: {report_path.name}",
         "",
         "Email summary:",
-        f"- Failed tests: {failed}",
-        f"- Skipped tests: {skipped}",
-        f"- Important passed tests: {important_passes}",
-        f"- Other passed tests attached as PDF: {len(passed_for_pdf)}",
+        f"- Failed tests: {len(failed_results)}",
+        f"- Skipped tests: {len(skipped_results)}",
+        f"- Total tests attached as PDF: {len(results)}",
         "",
-        "Failed, skipped, and important test details:",
+        "Failed and skipped test details:",
     ]
 
+    body_results = failed_results + skipped_results
     if not body_results:
-        lines.append("No failed, skipped, or important tests were recorded.")
+        lines.append("No failed or skipped tests were recorded.")
     else:
         for index, result in enumerate(body_results, start=1):
-            lines.extend(["", f"{index}. {result['name']}"])
-            lines.extend(f"   {line}" for line in result["lines"][1:])
+            reason = result["reason"] or "No failure or skip reason was recorded."
+            lines.extend(
+                [
+                    "",
+                    f"{index}. [{result['status']}] {result['name']}",
+                    f"   Reason: {reason}",
+                ]
+            )
 
     lines.extend(
         [
             "",
-            "The PDF attachment contains passed tests that were not classified as important.",
+            "The PDF attachment contains the result details for every executed test.",
             "",
             "Regards,",
             "Automation",
@@ -237,11 +205,10 @@ def _build_email_body(body_results, passed_for_pdf, report_path):
     )
     return "\n".join(lines)
 
-
 def _flatten_pdf_results(results):
     lines = []
     if not results:
-        return ["No non-important passed tests were recorded."]
+        return ["No test results were recorded."]
 
     for index, result in enumerate(results, start=1):
         lines.append(f"{index}. {result['name']}")
@@ -338,13 +305,6 @@ def _build_pdf(title, lines):
 
 def _pdf_escape(value):
     return str(value).replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-
-
-def _configured_list(variable, default):
-    value = os.getenv(variable)
-    if value is None:
-        return list(default)
-    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 def _parse_addresses(value):
