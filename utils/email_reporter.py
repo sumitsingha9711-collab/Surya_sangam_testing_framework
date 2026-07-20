@@ -109,7 +109,7 @@ def _load_email_config():
 
 def _build_message(config, report_path):
     results = _parse_test_blocks(report_path.read_text(encoding="utf-8"))
-    body_results, results_for_pdf = _split_results(results)
+    body_results, passed_for_pdf = _split_results(results)
 
     message = EmailMessage()
     message["From"] = config["sender"]
@@ -117,17 +117,17 @@ def _build_message(config, report_path):
     if config["cc"]:
         message["Cc"] = ", ".join(config["cc"])
     message["Subject"] = config["subject"]
-    message.set_content(_build_email_body(body_results, results_for_pdf, report_path))
+    message.set_content(_build_email_body(body_results, passed_for_pdf, report_path))
 
     pdf_bytes = _build_pdf(
-        "Surya Sangam - All Test Details",
-        _flatten_pdf_results(results_for_pdf),
+        "Surya Sangam - Passed Test Details",
+        _flatten_pdf_results(passed_for_pdf),
     )
     message.add_attachment(
         pdf_bytes,
         maintype="application",
         subtype="pdf",
-        filename=f"{report_path.stem}_all_tests.pdf",
+        filename=f"{report_path.stem}_passed_tests.pdf",
     )
     return message
 
@@ -138,14 +138,13 @@ def _parse_test_blocks(report_text):
     current = None
 
     for line in report_text.splitlines():
-        stripped = _normalize_report_line(line.strip())
-        header = _TEST_HEADER.match(stripped)
+        header = _TEST_HEADER.match(line.strip())
         if header:
             if current:
                 blocks.append(current)
             current = {
                 "name": header.group(1).strip(),
-                "lines": [stripped],
+                "lines": [line.strip()],
                 "status": "",
                 "area": "General",
             }
@@ -154,6 +153,7 @@ def _parse_test_blocks(report_text):
         if current is None:
             continue
 
+        stripped = line.strip()
         current["lines"].append(stripped)
         if stripped in {"PASS", "FAIL", "SKIP"} and not current["status"]:
             current["status"] = stripped
@@ -166,13 +166,18 @@ def _parse_test_blocks(report_text):
     return [block for block in blocks if block["status"]]
 
 
-
-def _normalize_report_line(line):
-    """Remove optional Markdown bold wrappers from report labels and headers."""
-    return re.sub(r"^\*\*(.+?)\*\*(.*)$", r"\1\2", line)
 def _split_results(results):
-    """Keep failed/skipped tests in the body and every test in the PDF."""
-    return [result for result in results if result["status"] in {"FAIL", "SKIP"}], results
+    body_results = []
+    passed_for_pdf = []
+
+    for result in results:
+        if result["status"] != "PASS" or _is_important(result):
+            body_results.append(result)
+        else:
+            passed_for_pdf.append(result)
+
+    return body_results, passed_for_pdf
+
 
 def _is_important(result):
     categories = _configured_list(
@@ -192,55 +197,51 @@ def _is_important(result):
     )
 
 
-def _build_email_body(body_results, results_for_pdf, report_path):
+def _build_email_body(body_results, passed_for_pdf, report_path):
+    failed = sum(result["status"] == "FAIL" for result in body_results)
+    skipped = sum(result["status"] == "SKIP" for result in body_results)
+    important_passes = sum(
+        result["status"] == "PASS" for result in body_results
+    )
+
     lines = [
-        "Surya Sangam Automation Test Report",
+        "Hello,",
         "",
-        "Failed and Skipped Test Cases",
+        "The Surya Sangam automation run is complete.",
+        f"Source report: {report_path.name}",
+        "",
+        "Email summary:",
+        f"- Failed tests: {failed}",
+        f"- Skipped tests: {skipped}",
+        f"- Important passed tests: {important_passes}",
+        f"- Other passed tests attached as PDF: {len(passed_for_pdf)}",
+        "",
+        "Failed, skipped, and important test details:",
     ]
 
     if not body_results:
-        lines.append("No failed or skipped tests were recorded.")
+        lines.append("No failed, skipped, or important tests were recorded.")
     else:
         for index, result in enumerate(body_results, start=1):
-            lines.extend(
-                [
-                    "",
-                    f"{index}. {result['status']}",
-                    f"Name: {result['name']}",
-                    f"Reason: {_extract_reason(result)}",
-                ]
-            )
+            lines.extend(["", f"{index}. {result['name']}"])
+            lines.extend(f"   {line}" for line in result["lines"][1:])
 
+    lines.extend(
+        [
+            "",
+            "The PDF attachment contains passed tests that were not classified as important.",
+            "",
+            "Regards,",
+            "Automation",
+        ]
+    )
     return "\n".join(lines)
 
-
-def _extract_reason(result):
-    """Return only the report's Problem Details value for an email summary."""
-    lines = result["lines"]
-    try:
-        start = lines.index("Problem Details:") + 1
-    except ValueError:
-        return "No reason provided."
-
-    detail_labels = {
-        "Exception Type:", "URL At Failure:", "Page Title:", "Parameters:",
-        "Screenshot Evidence:", "Full Traceback:", "Page HTML Snapshot:",
-        "Browser Console Log:", "Performance Log:", "Traceback Excerpt:",
-        "Captured STDOUT:", "Captured STDERR:", "---",
-    }
-    reason_lines = []
-    for line in lines[start:]:
-        if line in detail_labels:
-            break
-        if line:
-            reason_lines.append(line)
-    return " ".join(reason_lines) or "No reason provided."
 
 def _flatten_pdf_results(results):
     lines = []
     if not results:
-        return ["No test cases were recorded."]
+        return ["No non-important passed tests were recorded."]
 
     for index, result in enumerate(results, start=1):
         lines.append(f"{index}. {result['name']}")
