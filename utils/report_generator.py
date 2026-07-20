@@ -33,6 +33,7 @@ class ReportGenerator:
         """Add or update one test result using its stable node ID."""
         result = dict(result)
         result.setdefault("nodeid", result.get("name", ""))
+        result['reason'] = _short_reason(result.get('reason', ''))
         result_key = result["nodeid"] or self._legacy_result_key(result)
 
         if result_key in self._result_indexes:
@@ -110,7 +111,7 @@ class ReportGenerator:
         summary = payload["summary"]
         lines = [
             "=======================================",
-            "Surya Sangam Automation Report",
+            "**Surya Sangam Automation Report**",
             "=======================================",
             f"Execution Start: {run['started_at']}",
             f"Execution End: {run['finished_at']}",
@@ -134,7 +135,7 @@ class ReportGenerator:
             f"Execution Duration: {run['duration_seconds']:.3f} sec",
             "",
             "=======================================",
-            "Result Summary By Area",
+            "**Result Summary By Area**",
             "=======================================",
         ]
 
@@ -148,7 +149,7 @@ class ReportGenerator:
             [
                 "",
                 "=======================================",
-                "Executed Test Cases",
+                "**Executed Test Cases**",
                 "=======================================",
             ]
         )
@@ -158,7 +159,7 @@ class ReportGenerator:
         lines.extend(
             [
                 "=======================================",
-                "Recommendations",
+                "**Recommendations**",
                 "=======================================",
             ]
         )
@@ -177,13 +178,13 @@ class ReportGenerator:
 
     def _format_test_result(self, index, result):
         lines = [
-            f"TC{index:03d} - {result.get('name', '')}",
-            f"Node ID: {result.get('nodeid', '')}",
-            f"Source: {result.get('source_file', '')}:{result.get('source_line', '')}",
-            f"Area: {result.get('category', 'General')}",
-            f"Phase: {result.get('phase', 'call')}",
+            f"**TC{index:03d} - {result.get('name', '')}**",
+            f"**Node ID:** {result.get('nodeid', '')}",
+            f"**Source:** {result.get('source_file', '')}:{result.get('source_line', '')}",
+            f"**Area:** {result.get('category', 'General')}",
+            f"**Phase:** {result.get('phase', 'call')}",
             result.get("status", "FAIL"),
-            f"Duration: {result.get('duration', 0):.3f} sec",
+            f"**Duration:** {result.get('duration', 0):.3f} sec",
         ]
         for label, key in (
             ("Problem Details", "reason"),
@@ -199,14 +200,14 @@ class ReportGenerator:
         ):
             value = result.get(key)
             if value:
-                lines.extend([f"{label}:", str(value)])
+                lines.extend([f"**{label}:**", str(value)])
 
         if result.get("traceback"):
-            lines.extend(["Traceback Excerpt:", str(result["traceback"])[:2000]])
+            lines.extend(["**Traceback Excerpt:**", str(result["traceback"])[:2000]])
         if result.get("captured_stdout"):
-            lines.extend(["Captured STDOUT:", str(result["captured_stdout"])[:1000]])
+            lines.extend(["**Captured STDOUT:**", str(result["captured_stdout"])[:1000]])
         if result.get("captured_stderr"):
-            lines.extend(["Captured STDERR:", str(result["captured_stderr"])[:1000]])
+            lines.extend(["**Captured STDERR:**", str(result["captured_stderr"])[:1000]])
         lines.extend(["---", ""])
         return lines
 
@@ -222,6 +223,37 @@ class ReportGenerator:
             result.get("reason", ""),
         )
 
+
+
+def _short_reason(reason):
+    """Return a short, readable failure or skip explanation for reports."""
+    raw_lines = [line.strip() for line in str(reason).splitlines() if line.strip()]
+    if not raw_lines:
+        return ""
+
+    candidates = []
+    for line in raw_lines:
+        line = line.removeprefix("E ").strip()
+        if line.startswith(("File ", "self =", "request =", "driver =", "> ")):
+            continue
+        if any(
+            marker in line
+            for marker in ("AssertionError", "Error:", "Exception:", "Skipped:", "Failed:")
+        ):
+            candidates.append(line)
+
+    selected = candidates or raw_lines
+    summary = next(
+        (line for line in selected if "expected" in line.casefold()),
+        selected[-1],
+    )
+    for prefix in ("AssertionError:", "Failed:", "Skipped:"):
+        summary = summary.removeprefix(prefix).strip()
+    if len(summary) <= 180:
+        return summary
+
+    truncated = summary[:177].rsplit(" ", 1)[0]
+    return f"{truncated}..."
 
 def _git_commit():
     """Return the current commit without making reporting depend on Git."""
