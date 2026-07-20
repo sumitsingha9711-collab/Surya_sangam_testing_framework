@@ -29,6 +29,7 @@ class DriverFactory:
 
         # Selenium 4.6+ invokes Selenium Manager automatically when no service
         # executable is supplied. This avoids a separate driver download tool.
+        chrome_options.page_load_strategy = "eager"
         driver = webdriver.Chrome(options=chrome_options)
         driver.set_page_load_timeout(45)
         driver.set_script_timeout(20)
